@@ -22,23 +22,18 @@ and Physical Biochemistry, University of Regensburg, Universitätsstraße
     repository](#information-about-this-repository)
   - [Data generation](#data-generation)
   - [Data analysis](#data-analysis)
+      - [Navigation](#navigation)
       - [Raw data quality control](#raw-data-quality-control)
       - [Filtering of raw reads](#filtering-of-raw-reads)
-  - [Mapping of reads (`STAR`)](#mapping-of-reads-star)
-  - [Converting bam files to other
-    format](#converting-bam-files-to-other-format)
-  - [Preparing count matrices
-    (`featurecounts`)](#preparing-count-matrices-featurecounts)
-      - [Calculating transcript abundances and differential expression
-        analysis](#calculating-transcript-abundances-and-differential-expression-analysis)
-          - [Differential gene
-            expression](#differential-gene-expression)
-          - [ChIP-seq analysis](#chip-seq-analysis)
-      - [Data availability](#data-availability)
-          - [Raw sequencing files](#raw-sequencing-files)
-          - [Additional data](#additional-data)
-      - [License](#license)
-      - [References](#references)
+      - [Mapping of reads](#mapping-of-reads)
+      - [Diffential gene expression
+        analysis](#diffential-gene-expression-analysis)
+      - [ChIP-seq analysis](#chip-seq-analysis)
+  - [Data availability](#data-availability)
+      - [Raw sequencing files](#raw-sequencing-files)
+      - [Additional data](#additional-data)
+  - [License](#license)
+  - [References](#references)
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
@@ -61,11 +56,37 @@ Development](https://img.shields.io/badge/Maintenance%20Level-Actively%20Develop
 
 ## Data analysis
 
+### Navigation
+
+To follow the data analysis we managed the input/output folders in the
+following way:
+
+``` bash
+CopR/
+├── data/
+|   ├── genome_data
+|   ├── raw_data
+|   ├── clean_data
+|   ├── mapped_data
+|   ├── fastq_data
+|   ├── meme_data
+|   └── operon_data
+├── Rscrips
+├── figures
+├── tables/
+|   ├── tss_tables
+|   ├── tts_tables
+|   ├── tu_tables
+|   └── counts_tables
+├── LICENSE
+└── README
+```
+
 ### Raw data quality control
 
 Quality control at the raw data level using
 <a target="_blank" href="https://www.bioinformatics.babraham.ac.uk/projects/fastqc/">`FastQC`</a>
-was done to examine most common quality parameters (the total number of
+was done to examine most common quality parameters (total number of
 reads sequenced, GC content and the overall base quality score). Quality
 filtering parameters were based on this analysis.
 
@@ -78,24 +99,26 @@ Usadel ([2014](#ref-Bolger2014))). We start trimming the remaining reads
 by certain quality scores (PHRED33 based) with calculations in a sliding
 window of 4 bases and a minumum length of 12 bases.
 
-    for file in $data_folder/sortmerna_data/*_rna.fastq
-    do 
-      xbase=${file##*/}
-      filename=${xbase%%.*}
-      java -jar trimmomatic-0.36.jar SE -phred33 -threads 4 $file $data_folder"/clean_data/"$filename"_trimmed.fq.gz" LEADING:20 TRAILING:20 SLIDINGWINDOW:4:20 MINLEN:12
-      echo $filename "trimming finished \n\n"
-    done
-
-## Mapping of reads (`STAR`)
-
-Reads are mapped to the genome
-
 ``` bash
-# executable binary in following folder:
-cd /Users/felix/Downloads/STAR-2.5.4b/bin/MacOSX_x86_64/
+#!/bin/bash
+
+for file in $data_folder/raw_data/*_rna.fastq
+do 
+  filename_extended=$file##*/
+  filename=$filename_extended%%.*
+  java -jar trimmomatic-0.36.jar SE -phred33 -threads 4 $file $data_folder"/clean_data/"$filename"_trimmed.fq.gz" LEADING:20 TRAILING:20 SLIDINGWINDOW:4:20 MINLEN:12
+  echo $filename "trimming finished"
+done
 ```
 
+### Mapping of reads
+
+After trimming, reads were mapped to the genome using `STAR` (v.2.5.4)
+(Dobin et al. [2013](#ref-Dobin2013)).
+
 ``` bash
+#!/bin/bash
+
 # generate a index file for the genome based on .gtf file
 ./STAR.dms \
 --runThreadN 4 \
@@ -108,95 +131,48 @@ cd /Users/felix/Downloads/STAR-2.5.4b/bin/MacOSX_x86_64/
 # align reads
 for file in $data_folder/clean_data/*.fq.gz
 do 
-  xbase=${file##*/}
-  filename=${xbase%%.*}
-  mkdir $data_folder"/mapping_data/star/"$filename
+  filename_extended=$file##*/
+  filename=$filename_extended%%.*
+  mkdir $data_folder"/mapped_data/star/"$filename
   ./STAR \
   --runMode alignReads \
   --runThreadN 4 \
   --readFilesCommand gunzip -c \
   --genomeDir $data_folder"/genome_data/star" \
   --readFilesIn  $file \
-  --outFileNamePrefix $data_folder"/mapping_data/star/"$filename/$filename"_" \
+  --outFileNamePrefix $data_folder"/mapped_data/star/"$filename/$filename"_" \
   --outSAMtype BAM SortedByCoordinate \
   --limitIObufferSize 300000000 \
   --limitBAMsortRAM 4199333281 
-  echo $filename "mapping finished" \n\n 
+  echo $filename "mapping finished" 
 done
 ```
 
-## Converting bam files to other format
-
-Convert files to other formats (*BigWig*, *wiggle*) that are usually
-used for viewing mapped reads or for further analysis.
-
-Conversion to WIG is done using `bam2wig` script:
+After mapping files were converted to other formats (*BigWig*, *wiggle*)
+that can be used used for viewing in a genome browser or for further
+analysis.  
+Strand-specific wig and bigwig files were finally created using
+`bam2wig` (Version 1.5, <https://github.com/MikeAxtell/bam2wig>).
 
 ``` bash
-# in Documents/scripts
-for file in $data_folder/mapping_data/star/*/*.bam
+#!/bin/bash
+
+for file in $data_folder/mapped_data/star/*/*.bam
 do 
-  xbase=${file##*/}
-  filename=${xbase%%.*}
+  filename_extended=$file##*/
+  filename=$filename_extended%%.*
   ./bam2wig $file
-  echo $filename "bam2wig finished" \n\n
+  echo $filename "bam2wig finished" 
 done
 ```
 
-# Preparing count matrices (`featurecounts`)
+### Diffential gene expression analysis
 
-``` r
-# load libraries
-library("Rsubread")
-library("stringr")
-library("data.table")
-# load files 
-gtf_file <- paste(data_folder,"/genome_data/CP023154.gtf", sep = "")
-
-data_folder <- "/Users/felix/Documents/R/differential_0739/data"
-mappedFiles <- dir(file.path(paste(data_folder, "/mapping_data/star/", sep  ="")), pattern="*trimmed", full.name=T)
-names(mappedFiles) <- gsub(".bed","",basename(mappedFiles))
-mappedFiles
-
-
-file_folder <- list.files(path = paste(data_folder,"/mapping_data/star", sep = ""), full.names = T)
-file_path <- list.files(path = paste(data_folder,"/mapping_data/star", sep = ""), full.names = F)
-bam_list <- str_c(file_folder,"/", file_path, "_Aligned.sortedByCoord.out.bam",sep = "") 
-
-# calculate count matrix
-counts <- featureCounts(bam_list,verbose = F,annot.ext = gtf_file, isGTFAnnotationFile = T, nthreads = 4,GTF.featureType = "exon", allowMultiOverlap = F, isLongRead = F)$counts
-```
-
-After calculating the count matrix, column names are annotated according
-to experimental conditions and design.
-
-## Calculating transcript abundances and differential expression analysis
-
-``` r
-library("tidyverse")
-colnames_data <- c("replicate", "strain", "treatment")
-colData <- matrix(ncol = 3, nrow = 12)
-colnames(colData) <- colnames_data 
-colData <- data.table(colData) %>%
-  mutate(replicate = as.factor(rep(1:3,4)),
-         strain = as.factor(c(rep(52,6), rep(70,3), rep(74,3))),
-         treatment = as.factor(c(rep("no",3), rep("yes",3), rep("no",3), rep("no",3))))
-```
-
-Now we construct a *DESeqDataSet* object with:
-
-``` r
-library("DESeq2")
-dds <- DESeq2::DESeqDataSetFromMatrix(countData = counts[,c(1:6)], 
-                                            colData = colData[c(1:6),],
-                                            design = ~treatment)
-# prefilter data set: remove rows (genes) with no counts
-dds <- dds[ rowSums(counts(dds)) > 1, ]
-```
-
-In that case we are comparing strain 52 with 52 copper shock.
-
-### Differential gene expression
+We performed differential expression analysis using DESeq2 (Love,
+Anders, and Huber [2014](#ref-Love2014)). The analysis performed in R,
+including preparation of count matrices, statistical testing and
+exploratory data analsis can be retracted using the
+[`tidy_data`](Rscripts/deseq2_analysis.R) script.
 
 ### ChIP-seq analysis
 
@@ -227,6 +203,24 @@ This project is under the general MIT License - see the
 Bolger, Anthony M., Marc Lohse, and Bjoern Usadel. 2014. “Trimmomatic: A
 flexible trimmer for Illumina sequence data.” *Bioinformatics*.
 <https://doi.org/10.1093/bioinformatics/btu170>.
+
+</div>
+
+<div id="ref-Dobin2013">
+
+Dobin, Alexander, Carrie A. Davis, Felix Schlesinger, Jorg Drenkow,
+Chris Zaleski, Sonali Jha, Philippe Batut, Mark Chaisson, and Thomas R.
+Gingeras. 2013. “STAR: Ultrafast universal RNA-seq aligner.”
+*Bioinformatics* 29 (1): 15–21.
+<https://doi.org/10.1093/bioinformatics/bts635>.
+
+</div>
+
+<div id="ref-Love2014">
+
+Love, M. I., Simon Anders, and Wolfgang Huber. 2014. *Differential
+analysis of count data - the DESeq2 package*. Vol. 15. 12.
+<https://doi.org/110.1186/s13059-014-0550-8>.
 
 </div>
 
