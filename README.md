@@ -172,7 +172,7 @@ We performed differential expression analysis using DESeq2 (Love,
 Anders, and Huber [2014](#ref-Love2014)). The analysis performed in R,
 including preparation of count matrices, statistical testing and
 exploratory data analsis can be retracted using the
-[`tidy_data`](Rscripts/deseq2_analysis.R) script.
+[`deseq2_analysis`](Rscripts/deseq2_analysis.R) script.
 
 ### ChIP-seq analysis
 
