@@ -16,6 +16,23 @@ source(here("Rscripts/load_libraries.R"))
 # FUNCTIONS
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
+#...................................subsampling intergenic regions
+sampleString = function(string) {
+  nStart = sample(1:(nchar(string) - 61),1)
+  substr(string, nStart, nStart + 60)
+}
+
+#...................................make consensus matrix
+make_matrix_c <- function(input_term_sequence){
+  consensusMatrix(input_term_sequence, as.prob = T) %>%
+    t() %>%
+    as_tibble() %>%
+    mutate(position = c(-60:0)) %>%
+    gather(key = position) %>%
+    dplyr::rename(base = 1) %>%
+    mutate(position = rep(c(-60:0),4))
+}
+
 #...................................make read count matrix
 make_read_matrix <- function(left_border, right_border, dataset_location){
   dataset <- fread(dataset_location) %>%
@@ -231,6 +248,32 @@ chip_and_rnaseq_table_seq$custom_TSS <- c(702687,
                                           693206,
                                           702602,
                                           716262)
+x <- 60
+x <- 100
+chip_and_rnaseq_table_seq_filtered <- chip_and_rnaseq_table_seq %>%
+  dplyr::filter(!is.na(custom_TSS)) %>%
+  rowwise() %>%
+  mutate(sequence = ifelse(strand == "+", as.character(pfu_fasta$CP023154[(custom_TSS-x):(custom_TSS+0)]),
+                           as.character(reverseComplement(pfu_fasta$CP023154[(custom_TSS-0):(custom_TSS+x)]))))
 
+pfu_terminator_matrix <- make_matrix_c(chip_and_rnaseq_table_seq_filtered$sequence)
+pfu_background_matrix <- make_matrix_c(pfu_tss$sequence) #tss from pyrococcus with good promoter
+pfu_compare_matrix    <- pfu_terminator_matrix %>%
+  dplyr::rename(value_terminator = 2) %>%
+  left_join(pfu_background_matrix) %>%
+  mutate(value_terminator = value_terminator,
+         value = value) %>%
+  mutate(value = (value_terminator/value))
 
+pdf(here("figures/nucleotide_enrichment_tss_motif_pfu_filtered.pdf"),
+    width = 14, height = 7, paper = "special",onefile=FALSE)
+ggplot(data = pfu_compare_matrix, aes(x = position, y = (value), color = base)) +
+  geom_hline(yintercept = 1, alpha = 0.5, linetype = "dashed") +
+  geom_smooth(span = 0.09, se = F, size = 2) +
+  xlab("Position relative to TSS") +
+  ylab("Nucleotide enrichment \n(log2-fold enrichment)") +
+  theme_Publication_white() +
+  scale_color_viridis_d(option = "magma", begin = 0.8, end = 0) +
+  scale_x_continuous(expand = c(0,0))
+dev.off()
 

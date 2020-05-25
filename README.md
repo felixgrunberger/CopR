@@ -213,7 +213,7 @@ done
 Position-specific enrichments were calculated by extracting the mean
 counts of biological triplicates from bed files for the ChIP-sample,
 comparison to the input files and taking the log2 (compare
-[`normalise_chipseq`](Rscripts/normalise_chipseq.R).
+[`normalise_chipseq`](Rscripts/normalise_chipseq.R)).
 
 ### Differential gene expression analysis
 
