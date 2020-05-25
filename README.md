@@ -20,18 +20,17 @@ and Physical Biochemistry, University of Regensburg, Universitätsstraße
 
   - [Information about this
     repository](#information-about-this-repository)
-  - [Data generation](#data-generation)
   - [Data analysis](#data-analysis)
-      - [Navigation](#navigation)
       - [Raw data quality control](#raw-data-quality-control)
       - [Filtering of raw reads](#filtering-of-raw-reads)
       - [Mapping of reads](#mapping-of-reads)
-      - [Diffential gene expression
-        analysis](#diffential-gene-expression-analysis)
-      - [ChIP-seq analysis](#chip-seq-analysis)
+          - [RNA-seq](#rna-seq)
+          - [ChIP-seq](#chip-seq)
+      - [Differential gene expression
+        analysis](#differential-gene-expression-analysis)
+      - [ChIP-seq analysis & integration with RNA-seq
+        data](#chip-seq-analysis-integration-with-rna-seq-data)
   - [Data availability](#data-availability)
-      - [Raw sequencing files](#raw-sequencing-files)
-      - [Additional data](#additional-data)
   - [License](#license)
   - [References](#references)
 
@@ -52,35 +51,7 @@ The repository is currently actively developed.
 [![Active
 Development](https://img.shields.io/badge/Maintenance%20Level-Actively%20Developed-brightgreen.svg)](https://gist.github.com/cheerfulstoic/d107229326a01ff0f333a1d3476e068d)
 
-## Data generation
-
 ## Data analysis
-
-### Navigation
-
-To follow the data analysis we managed the input/output folders in the
-following way:
-
-``` bash
-CopR/
-├── data/
-|   ├── genome_data
-|   ├── raw_data
-|   ├── clean_data
-|   ├── mapped_data
-|   ├── fastq_data
-|   ├── meme_data
-|   └── operon_data
-├── Rscrips
-├── figures
-├── tables/
-|   ├── tss_tables
-|   ├── tts_tables
-|   ├── tu_tables
-|   └── counts_tables
-├── LICENSE
-└── README
-```
 
 ### Raw data quality control
 
@@ -95,9 +66,11 @@ filtering parameters were based on this analysis.
 We used
 <a href = "http://www.usadellab.org/cms/?page=trimmomatic">`trimmomatic`</a>
 (v. 0.36) in single-end-mode to trim raw reads (Bolger, Lohse, and
-Usadel ([2014](#ref-Bolger2014))). We start trimming the remaining reads
-by certain quality scores (PHRED33 based) with calculations in a sliding
-window of 4 bases and a minumum length of 12 bases.
+Usadel ([2014](#ref-Bolger2014))).
+
+We start trimming the remaining reads by certain quality scores (PHRED33
+based, cut.off Phread score 20) with calculations in a sliding window of
+4 bases and a minumum length of 12 bases (40 for ChIP-seq).
 
 ``` bash
 #!/bin/bash
@@ -112,6 +85,8 @@ done
 ```
 
 ### Mapping of reads
+
+#### RNA-seq
 
 After trimming, reads were mapped to the genome using `STAR` (v.2.5.4)
 (Dobin et al. [2013](#ref-Dobin2013)).
@@ -166,26 +141,100 @@ do
 done
 ```
 
-### Diffential gene expression analysis
+#### ChIP-seq
+
+Reads were mapped to the *P. furiosus* genome using `Bowtie 2` (v.
+2.2.3) with default settings (Langmead and Salzberg
+[2012](#ref-Langmead2012)).
+
+``` bash
+#!/bin/bash
+
+# Indexing a reference genome
+cd $data_folder/mapped_data
+bowtie2-build $data_folder/genome_data/CP023154.fasta CP023154
+
+# Align reads
+for file in $data_folder/trimmed_data/*.fastq.gz
+do 
+  filename_extended=${file##*/}
+  filename=${filename_extended%%.*}  
+  (bowtie2 -x CP023154 -U $file -S $data_folder"/mapped_data/"$filename".sam") 2>$data_folder"/mapped_data/"$filename".sam".log
+  echo $filename mapping finished
+done
+```
+
+SAM files were converted to sorted BAM files using samtools and extended
+towards the 3´direction by their fragment-size to better represent the
+precise protein-DNA interaction (Li et al. [2009](#ref-Li2009)).
+
+``` bash
+#!/bin/bash
+
+# sam to indexed sorted bam
+for file in $data_folder/mapped_data/*.sam
+do 
+  filename_extended=$file##*/
+  filename=$filename_extended%%.*
+  samtools view -bS -q 40 $file > $data_folder"/mapped_data/"$filename."bam"
+  samtools sort $data_folder"/mapped_data/"$filename."bam" -o $data_folder"/mapped_data/"$filename."sorted.bam"
+  samtools index $data_folder"/mapped_data/"$filename."sorted.bam"
+  echo $filename sam_to_bam finished
+done
+
+# extend reads towards their 3´end
+for file in $data_folder/mapped_data/*.sorted.bam
+do 
+  filename_extended=$file##*/
+  filename=$filename_extended%%.*
+  bamToBed -i $file | slopBed -i - -g $data_folder"/genome_data/chrom.sizes.txt" -s -r 300 -l 0 | bedToBam -i - -g $data_folder"/genome_data/chrom.sizes.txt" > $data_folder"/mapped_data/bedtools_extended/"$filename"_extended.bam"
+  echo $filename extension finished
+done
+
+# sort & index
+for file in $data_folder/mapped_data/bedtools_extended/*_extended.bam
+do 
+  filename_extended=$file##*/
+  filename=$filename_extended%%.*
+  samtools sort $file -o $data_folder/mapped_data/bam_files/$filename".sorted.extended.bam"
+  samtools index $data_folder/mapped_data/bam_files/$filename".sorted.extended.bam"
+done
+
+# convert to bedgraph (for log2-calculations in R)
+for file in $data_folder/mapped_data/bam_files/*.sorted.extended.bam
+do 
+  filename_extended=${file##*/}
+  filename=${filename_extended%%.*}
+  genomeCoverageBed -ibam $file -d > $data_folder"/mapped_data/bed_files/"$filename".sorted.extended.position.bedgraph"
+  echo $filename position specific genomecoverage finished
+done
+```
+
+Position-specific enrichments were calculated by extracting the mean
+counts of biological triplicates from bed files for the ChIP-sample,
+comparison to the input files and taking the log2 (compare
+[`normalise_chipseq`](Rscripts/normalise_chipseq.R).
+
+### Differential gene expression analysis
 
 We performed differential expression analysis using DESeq2 (Love,
 Anders, and Huber [2014](#ref-Love2014)). The analysis performed in R,
 including preparation of count matrices, statistical testing and
-exploratory data analysis can be retracted using the
+exploratory data analysis can be retraced using the
 [`deseq2_analysis`](Rscripts/deseq2_analysis.R) script.
 
-### ChIP-seq analysis
+### ChIP-seq analysis & integration with RNA-seq data
+
+The steps used to perform ChIP-seq enrichment analysis and integration
+with RNA-seq data are shown in the
+[`chipseq_downstream`](Rscripts/chipseq_downstream.R) script.
 
 ## Data availability
-
-### Raw sequencing files
 
 Raw sequence data have been uploaded to the NCBI sequence read archive
 (<a href="https://www.ncbi.nlm.nih.gov/sra">SRA</a>) and are available
 under project accession number
 <a href="https://www.ncbi.nlm.nih.gov/bioproject/PRJNA603674">PRJNA603674</a>.
-
-### Additional data
 
 -----
 
@@ -213,6 +262,22 @@ Chris Zaleski, Sonali Jha, Philippe Batut, Mark Chaisson, and Thomas R.
 Gingeras. 2013. “STAR: Ultrafast universal RNA-seq aligner.”
 *Bioinformatics* 29 (1): 15–21.
 <https://doi.org/10.1093/bioinformatics/bts635>.
+
+</div>
+
+<div id="ref-Langmead2012">
+
+Langmead, Ben, and Steven L. Salzberg. 2012. “Fast gapped-read alignment
+with Bowtie 2.” *Nature Methods*. <https://doi.org/10.1038/nmeth.1923>.
+
+</div>
+
+<div id="ref-Li2009">
+
+Li, Heng, Bob Handsaker, Alec Wysoker, Tim Fennell, Jue Ruan, Nils
+Homer, Gabor Marth, Goncalo Abecasis, and Richard Durbin. 2009. “The
+Sequence Alignment/Map format and SAMtools.” *Bioinformatics* 25 (16):
+2078–9. <https://doi.org/10.1093/bioinformatics/btp352>.
 
 </div>
 
