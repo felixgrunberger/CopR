@@ -160,8 +160,8 @@ p_plus <- p_plus[-1,]
 x <- 300
 
 #...................................make read matrix from extended bedgraph files
-matrix739           <- make_read_matrix(left_border = -x, right_border = x, dataset_location = "/Volumes/TOSHIB/backup_lacie_190320/chip_seq/20181113/mapped_data/bed_files/log2_739_individual_extended.bedgraph")
-matrix739_copper    <- make_read_matrix(left_border = -x, right_border = x, dataset_location = "/Volumes/TOSHIB/backup_lacie_190320/chip_seq/20181113/mapped_data/bed_files/log2_739_copper_individual_extended.bedgraph")
+matrix739           <- make_read_matrix(left_border = -x, right_border = x, dataset_location = mappedFiles[1])
+matrix739_copper    <- make_read_matrix(left_border = -x, right_border = x, dataset_location = mappedFiles[2])
 
 #...................................filter genes for strand
 topgenes_gff_p_list <- left_join(topgenes, gff_table, by = c("rowname" = "ID")) %>%
