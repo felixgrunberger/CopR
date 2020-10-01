@@ -54,11 +54,7 @@ ChIP_norm <- function(chip_project = c("739", "copper_739")){
 
 # path to extended bed files
 exbedFiles_list <- here("/data/mapped_data/bed_files")
-exbedFiles_list <-"/Volumes/Lacie/chip_seq/20181113/mapped_data/bed_files/"
-exbedFiles <- list.files(path = paste(exbedFiles_list), pattern="*.sorted.new.extended.position.bedgraph$", full.name=T)
-
-exbedFiles <- list.files(path = "/Volumes/Lacie/chip_seq/20181113/mapped_data/bed_files/",pattern = "*.sorted.new.extended.position.bedgraph$", full.name=T)
-
+exbedFiles <- list.files(path = paste(exbedFiles_list), pattern="*.sorted.extended.position.bedgraph$", full.name=T)
 names(exbedFiles) <- gsub(".bedgraph","",basename(exbedFiles))
 
 # calc log2 IP vs input normal
@@ -80,9 +76,6 @@ copper_chip739_exbed <- ChIP_norm(chip_project = "copper_739") %>%
 # export log2-files
 write.table(chip739_exbed,quote = F, sep = "\t", row.names = F, col.names = F,
             file = paste(exbedFiles_list, "/log2_739.new.bedgraph", sep = ""))
-
-fwrite(x = chip739_exbed, file = paste(exbedFiles_list, "/log2_739.new.bedgraph", sep = ""),
-       quote = F, sep = "\t",row.names = F, col.names = F)
 
 write.table(copper_chip739_exbed,quote = F, sep = "\t", row.names = F, col.names = F,
             file = paste(exbedFiles_list, "/log2_739_copper.new.bedgraph", sep = ""))

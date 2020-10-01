@@ -165,8 +165,9 @@ done
 ```
 
 SAM files were converted to sorted BAM files using samtools and extended
-towards the 3´direction by their fragment-size to better represent the
-precise protein-DNA interaction (Li et al. [2009](#ref-Li2009)).
+towards the 3´direction to their fragment-size (200 bp size selection
+during library preparation) to better represent the precise protein-DNA
+interaction (Li et al. [2009](#ref-Li2009)).
 
 ``` bash
 #!/bin/bash
@@ -187,7 +188,7 @@ for file in $data_folder/mapped_data/*.sorted.bam
 do 
   filename_extended=$file##*/
   filename=$filename_extended%%.*
-  bamToBed -i $file | slopBed -i - -g $data_folder"/genome_data/chrom.sizes.txt" -s -r 300 -l 0 | bedToBam -i - -g $data_folder"/genome_data/chrom.sizes.txt" > $data_folder"/mapped_data/bedtools_extended/"$filename"_extended.bam"
+  bamToBed -i $file | slopBed -i - -g $data_folder"/genome_data/chrom.sizes.txt" -s -r 150 -l 0 | bedToBam -i - -g $data_folder"/genome_data/chrom.sizes.txt" > $data_folder"/mapped_data/bedtools_extended/"$filename"_extended.bam"
   echo $filename extension finished
 done
 
@@ -210,9 +211,11 @@ do
 done
 ```
 
-Position-specific enrichments were calculated by extracting the mean
-counts of biological triplicates from bed files for the ChIP-sample,
-comparison to the input files and taking the log2 (compare
+Position-specific enrichments in BED format were calculated by i)
+scaling the reads in each dataset according to sequencing depth, ii)
+calculation of the ratio between IP and input for each replicate, and
+iii) averaging of the IP/input ratio from the biological triplicates and
+taking the log2 for comparison (compare
 [`normalise_chipseq`](Rscripts/normalise_chipseq.R)).
 
 ### Differential gene expression analysis
