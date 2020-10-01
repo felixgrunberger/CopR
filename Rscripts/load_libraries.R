@@ -1,8 +1,8 @@
 # set libraries and standard plotting functions that are used during the analysis
 
 #...................................libraries
-packages <- c("readxl", "stringr", "tidyverse", "data.table",
-              "Rsubread", "DESeq2", "ggthemes", "ggbeeswarm",
+packages <- c("readxl", "stringr", "tidyverse", "data.table","ggsci","scico","vroom",
+              "Rsubread", "DESeq2", "ggthemes", "ggbeeswarm","ggrepel","readxl",
               "IHW", "here", "heatmaply", "ape", "goseq", "ggradar")
 
 invisible(lapply(packages, require, character.only = TRUE))

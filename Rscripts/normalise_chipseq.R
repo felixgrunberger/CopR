@@ -18,6 +18,7 @@ source(here("Rscripts/load_libraries.R"))
 
 #...................................normalize chipseq data
 ChIP_norm <- function(chip_project = c("739", "copper_739")){
+  
   binnedFiles <- exbedFiles
   if(chip_project == "739"){
     i <- 1
@@ -27,21 +28,23 @@ ChIP_norm <- function(chip_project = c("739", "copper_739")){
     i <- 1+6
   } 
   
-  left_join(fread(binnedFiles[i]), fread(binnedFiles[i+1]), by = c("V1", "V2")) %>%
-    left_join(fread(binnedFiles[i+2]), by = c("V1", "V2")) %>%
-    left_join(fread(binnedFiles[i+3]), by = c("V1", "V2")) %>%
-    left_join(fread(binnedFiles[i+4]), by = c("V1", "V2")) %>%
-    left_join(fread(binnedFiles[i+5]), by = c("V1", "V2")) %>%
-    mutate(V3.x = .[[3]]/sum(.[[3]])*1000000,
-           V3.y = .[[4]]/sum(.[[4]])*1000000,
-           V3.x.x = .[[5]]/sum(.[[5]])*1000000,
-           V3.y.y = .[[6]]/sum(.[[6]])*1000000,
-           V3.x.x.x = .[[7]]/sum(.[[7]])*1000000,
-           V3.y.y.y = .[[8]]/sum(.[[8]])*1000000) %>%
-    mutate(counts_input = rowMeans(.[,3:5]),
-           counts_chip = rowMeans(.[,c(6,8)]),
-           counts_log2 = log2(counts_chip/counts_input)) %>%
-    dplyr::select(V1, V2, counts_log2)
+  left_join(vroom(binnedFiles[i],col_names = F), vroom(binnedFiles[i+1],col_names = F), by = c("X1", "X2")) %>%
+    left_join(vroom(binnedFiles[i+2],col_names = F), by = c("X1", "X2")) %>%
+    left_join(vroom(binnedFiles[i+3],col_names = F), by = c("X1", "X2")) %>%
+    left_join(vroom(binnedFiles[i+4],col_names = F), by = c("X1", "X2")) %>%
+    left_join(vroom(binnedFiles[i+5],col_names = F), by = c("X1", "X2")) %>%
+    mutate(X3.x = .[[3]]/sum(.[[3]])*1000000,
+           X3.y = .[[4]]/sum(.[[4]])*1000000,
+           X3.x.x = .[[5]]/sum(.[[5]])*1000000,
+           X3.y.y = .[[6]]/sum(.[[6]])*1000000,
+           X3.x.x.x = .[[7]]/sum(.[[7]])*1000000,
+           X3.y.y.y = .[[8]]/sum(.[[8]])*1000000) %>%
+    mutate(ip_input_1 = X3.y.y/X3.x,
+           ip_input_2 = X3.x.x.x/X3.y,
+           ip_input_3 = X3.y.y.y/X3.x.x) %>%
+    mutate(ip_input_mean = rowMeans(.[,9:11]),
+           counts_log2 = log2(ip_input_mean)) %>%
+    dplyr::select(X1, X2, counts_log2)
 }
 
 
@@ -51,29 +54,36 @@ ChIP_norm <- function(chip_project = c("739", "copper_739")){
 
 # path to extended bed files
 exbedFiles_list <- here("/data/mapped_data/bed_files")
+exbedFiles_list <-"/Volumes/Lacie/chip_seq/20181113/mapped_data/bed_files/"
 exbedFiles <- list.files(path = paste(exbedFiles_list), pattern="*.sorted.new.extended.position.bedgraph$", full.name=T)
+
+exbedFiles <- list.files(path = "/Volumes/Lacie/chip_seq/20181113/mapped_data/bed_files/",pattern = "*.sorted.new.extended.position.bedgraph$", full.name=T)
+
 names(exbedFiles) <- gsub(".bedgraph","",basename(exbedFiles))
 
 # calc log2 IP vs input normal
 chip739_exbed <- ChIP_norm(chip_project = "739") %>%
   as.tibble() %>%
-  mutate(col2 = V2-1,
-         col3 = V2,
+  mutate(col2 = X2-1,
+         col3 = X2,
          col4 = counts_log2) %>%
-  dplyr::select(V1, col2, col3, col4)
+  dplyr::select(X1, col2, col3, col4)
 
 # calc log2 IP vs input copper-treated
 copper_chip739_exbed <- ChIP_norm(chip_project = "copper_739") %>%
   as.tibble() %>%
-  mutate(col2 = V2-1,
-         col3 = V2,
+  mutate(col2 = X2-1,
+         col3 = X2,
          col4 = counts_log2) %>%
-  dplyr::select(V1, col2, col3, col4)
+  dplyr::select(X1, col2, col3, col4)
 
 # export log2-files
 write.table(chip739_exbed,quote = F, sep = "\t", row.names = F, col.names = F,
-            file = paste(exbedFiles_list, "/log2_739.bedgraph", sep = ""))
+            file = paste(exbedFiles_list, "/log2_739.new.bedgraph", sep = ""))
+
+fwrite(x = chip739_exbed, file = paste(exbedFiles_list, "/log2_739.new.bedgraph", sep = ""),
+       quote = F, sep = "\t",row.names = F, col.names = F)
 
 write.table(copper_chip739_exbed,quote = F, sep = "\t", row.names = F, col.names = F,
-            file = paste(exbedFiles_list, "/log2_739_copper.bedgraph", sep = ""))
+            file = paste(exbedFiles_list, "/log2_739_copper.new.bedgraph", sep = ""))
 
